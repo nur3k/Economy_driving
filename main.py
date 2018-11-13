@@ -1,97 +1,121 @@
-import sys
-import datetime
-import logging
 import time
 import threading
-from multiprocessing import Process
-import multiprocessing
 
 
-class Light(object):
-    def __init__(self, green_s, red_s, position_x, position_y, lights_name):
-        # cycles
-        self.light = 'red'
-        self.green_s = green_s  # green cycle in seconds
-        self.red_s = red_s  # red cycle in seconds
-        self.position_x, self.position_y = position_x, position_y
+class Light(threading.Thread):
+    def __init__(self, green_s, red_s, position_x_y, lights_name):
+        super(Light, self).__init__()
+        self.green_s, self.red_s = green_s, red_s  # cycles in seconds
+        self.position_x_y = position_x_y
         self.lights_name = lights_name
+        self.light = 'red'
         self.green_time = 0
         self.red_time = self.red_s
-        # thread = threading.Thread(target=self.cycle_simulation)
-        # thread.daemon = True
-        # thread.start()
-        #Process(target=self.cycle_simulation()).start()
-        multiprocessing.Process(target=self.cycle_simulation).start()
+        self.running = False
+        self.is_light_passed = 1
+
+    def run(self):
+        self.running = True
+        self.cycle_simulation()
 
     def cycle_simulation(self):
-        print('aaa3')
-        while True:
+        while self.running:
             while self.red_time > 0:
-                print('aaa2')
                 self.light = 'red'
                 self.red_time -= 1
                 time.sleep(1)
-                print('aaa222')
                 if self.red_time == 0:
                     self.green_time = self.green_s
-                return self.light, self.green_time, self.red_time
+                #yield self.light, self.green_time, self.red_time
+
             while self.green_time > 0:
                 self.light = 'green'
                 self.green_time -= 1
                 time.sleep(1)
                 if self.green_time == 0:
                     self.red_time = self.red_s
-                print('aaa1')
-                return self.light, self.green_time, self.red_time
-            print('aaa655')
+                #yield self.light, self.green_time, self.red_time
 
-    def green_or_red(self):
-        if self.light == 'green':
-            return self.green_time, self.red_time
-        if self.light == 'red':
-            return self.red_time, self.green_time
+    # def green_or_red(self):
+    #     if self.light == 'green':
+    #         return self.green_time, self.green_time
+    #     if self.light == 'red':
+    #         return self.red_time, self.red_time
 
     def print_remaining_time(self):
-        print('Light is:', self.green_or_red()[0], 'On distance [m]:',
-              self.position_x, 'Remained time [s]:', self.green_or_red()[1])
+        if self.light == 'green':
+            print('Light is:', self.light, '\n Time remaining:', self.green_time)
+        else:
+            print('Light is:', self.light, '\n Time remaining:', self.red_time)
 
-    def calculate_speed_needed(self, distance_to_light):
-        speed_ms = int(distance_to_light / self.green_or_red())
-        speed_km = int(distance_to_light / self.green_or_red() * 3.6)
-        print('\n If you want to go on green in {} \n'
-              'then yours speed should be: {} m/s = {} km/h'.format(self.lights_name, speed_ms, speed_km))
+    def calculate_speed_needed(self, distance_to_light, authorized_speed):
+        try:
+            if distance_to_light >= 0:
+                speed_ms = int(distance_to_light / self.red_time)
+                speed_km = int(distance_to_light / self.red_time * 3.6)
+                print('\n If you want to go on green in {} \n'
+                      'then yours speed should be: {} m/s = {} km/h'.
+                      format(self.lights_name, speed_ms, speed_km))
+                if speed_km > authorized_speed:
+                    print('You have to overspeed to get on green. Dont hurry, yours speed:',
+                          speed_km, '\n authorized_speed: ', authorized_speed)
+            else:
+                print('\n You passed the light')
+                self.is_light_passed = 0
+
+        except ZeroDivisionError:
+            print('\n You passed the light')
+            self.is_light_passed = 0
 
     def calculate_distance_to_light(self, position_x):
-        distance = self.position_x - position_x
+        distance = self.position_x_y[0] - position_x
         return distance
 
 
 class MyCar:
     def __init__(self, position_x):
         self.position_x = position_x
+        self.speed_kmh = 60
 
     def get_gps_position(self):
         # symulacja zmiany pozycji x, trzeba bedzie dodać zczytywanie z GPSa
-        self.position_x += 1
+        self.position_x += 30
         time.sleep(1)
         return self.position_x
+
+    def get_speed_position(self):
+        return self.speed_kmh
 
     def show_position(self):
         self.position_x = self.get_gps_position()
         return self.position_x
 
 
-
-#SMMikolaja = Light(15, 10, (40, 50), "SM")
-
 if __name__ == '__main__':
-#     #JP2.calculate_speed_needed(JP2.calculate_distance_to_light(BMW.show_position()))
-#     #SMMikolaja.calculate_speed_needed(SMMikolaja.calculate_distance_to_light(BMW.show_position()))
 
-    JP2 = Light(40, 10, 10, 10, 'Jp2')
+    BMW = MyCar(10)
+    JP2 = Light(10, 5, (2000, 30), 'Jp2')
+    JP2.start()
+
+    Smikolaja = Light(15, 10, (300, 30), "SM")
+    Smikolaja.start()
+
     while True:
+        while JP2.is_light_passed != 0:
+            try:
+                JP2.calculate_speed_needed(
+                    JP2.calculate_distance_to_light(
+                        BMW.show_position()), BMW.get_speed_position())
+                if JP2.is_light_passed == 0:
+                    del JP2
+                    break
+            except NameError:
+                pass
 
-    # p1 = multiprocessing.Process(target=JP2)
-    # #p2 = multiprocessing.Process(target=JP2.cycle_simulation)
-    # p1.start()
-
+        while Smikolaja.is_light_passed != 0:
+            Smikolaja.calculate_speed_needed(
+                Smikolaja.calculate_distance_to_light(
+                    BMW.show_position()), BMW.get_speed_position())
+            if Smikolaja.is_light_passed == 0:
+                del Smikolaja
+                break
