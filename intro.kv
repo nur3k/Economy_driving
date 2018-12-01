@@ -1,0 +1,16 @@
+<Intro>:
+    id: intro
+    show_btn: show
+
+
+    BoxLayout:
+        spacing: 10
+        orientation: 'vertical'
+        center: root.center_x, self.height / 2 + 20
+
+        Button:
+            id: show
+            text: "Show_btn"
+            on_press: intro.show_position()
+
+
